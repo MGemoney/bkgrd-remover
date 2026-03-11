@@ -1,0 +1,4 @@
+gradio
+rembg[gpu]
+Pillow
+onnxruntime
