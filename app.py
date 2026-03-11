@@ -24,7 +24,7 @@ MODELS = [
     "birefnet-massive",
 ]
 
-DEFAULT_MODEL = "u2net"
+DEFAULT_MODEL = "isnet-general-use"
 
 
 def remove_background_batch(images, model_name):
