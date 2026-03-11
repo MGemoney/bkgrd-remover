@@ -1,7 +1,8 @@
+import os
+
 import gradio as gr
 from rembg import remove, new_session
 from PIL import Image
-import io
 
 # Available rembg models
 MODELS = [
@@ -57,4 +58,5 @@ with gr.Blocks(title="Product Background Remover") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    port = int(os.environ.get("PORT", 7860))
+    demo.launch(server_name="0.0.0.0", server_port=port)
