@@ -2,3 +2,5 @@ gradio
 rembg[gpu]
 Pillow
 onnxruntime
+matplotlib
+numpy
