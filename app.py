@@ -1,11 +1,18 @@
 import os
 import tempfile
 import zipfile
+from functools import lru_cache
 
 import gradio as gr
 import numpy as np
 from rembg import remove, new_session
 from PIL import Image
+
+
+@lru_cache(maxsize=4)
+def get_session(model_name):
+    """Cache rembg sessions so the model is only loaded once per model name."""
+    return new_session(model_name)
 
 # Common Pantone colors mapped to RGB values
 PANTONE_COLORS = {
@@ -63,64 +70,6 @@ def hex_to_rgb(hex_str):
     """Convert hex color string to RGB tuple."""
     hex_str = hex_str.lstrip("#")
     return tuple(int(hex_str[i : i + 2], 16) for i in (0, 2, 4))
-
-
-def recolor_product(image, mask, target_rgb):
-    """
-    Recolor a product image to a target color while preserving texture and shading.
-    Keeps whites, blacks, metallic/dark regions, and logos intact.
-    """
-    img_array = np.array(image).astype(np.float64)
-    mask_array = np.array(mask)
-
-    # Create product mask from alpha channel (where product exists)
-    if mask_array.ndim == 2:
-        product_mask = mask_array > 128
-    else:
-        product_mask = mask_array[:, :, 3] > 128
-
-    # Convert to HSV for analysis
-    from colorsys import rgb_to_hsv, hsv_to_rgb
-
-    h, w = img_array.shape[:2]
-    result = img_array.copy()
-
-    # Target color in 0-1 range
-    t_r, t_g, t_b = target_rgb[0] / 255.0, target_rgb[1] / 255.0, target_rgb[2] / 255.0
-    t_h, t_s, t_v = rgb_to_hsv(t_r, t_g, t_b)
-
-    for y in range(h):
-        for x in range(w):
-            if not product_mask[y, x]:
-                continue
-
-            r, g, b = img_array[y, x, 0] / 255.0, img_array[y, x, 1] / 255.0, img_array[y, x, 2] / 255.0
-            o_h, o_s, o_v = rgb_to_hsv(r, g, b)
-
-            # Skip near-white pixels (logos, text)
-            if o_s < 0.10 and o_v > 0.85:
-                continue
-            # Skip near-black pixels (hardware, zippers, deep shadows)
-            if o_v < 0.15:
-                continue
-            # Skip very low saturation + mid brightness (metallic/gray hardware)
-            if o_s < 0.08:
-                continue
-
-            # Blend strength based on original saturation (more saturated = more recolor)
-            blend = min(o_s / 0.25, 1.0)
-
-            # Apply target hue and saturation, keep original value (brightness)
-            new_h = t_h
-            new_s = t_s * blend + o_s * (1 - blend)
-            new_v = o_v  # preserve original brightness/texture
-
-            n_r, n_g, n_b = hsv_to_rgb(new_h, new_s, new_v)
-            result[y, x, 0] = n_r * 255
-            result[y, x, 1] = n_g * 255
-            result[y, x, 2] = n_b * 255
-
-    return Image.fromarray(result.astype(np.uint8))
 
 
 def recolor_product_fast(image, mask, target_rgb):
@@ -202,17 +151,14 @@ def color_swap(image, pantone_choice, hex_color, model_name):
     img = Image.open(image).convert("RGBA")
 
     # Use rembg to get the mask (background removed version has alpha)
-    session = new_session(model_name)
+    session = get_session(model_name)
     removed = remove(img, session=session)
 
     # Use the alpha channel from removed as the product mask
     mask = np.array(removed)
 
     # Recolor the original image using the mask
-    try:
-        recolored = recolor_product_fast(img, mask, target_rgb)
-    except ImportError:
-        recolored = recolor_product(img, mask, target_rgb)
+    recolored = recolor_product_fast(img, mask, target_rgb)
 
     # Create a version with background removed + recolored
     recolored_array = np.array(recolored)
@@ -254,7 +200,7 @@ def remove_background_batch(images, model_name):
     if not images:
         return [], None
 
-    session = new_session(model_name)
+    session = get_session(model_name)
     results = []
     temp_dir = tempfile.mkdtemp()
 
