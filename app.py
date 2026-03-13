@@ -151,7 +151,7 @@ def color_swap(image, pantone_choice, hex_color, model_name):
     img = Image.open(image).convert("RGBA")
 
     # Use rembg to get the mask (background removed version has alpha)
-    session = get_session(model_name)
+    session = get_session(resolve_model(model_name))
     removed = remove(img, session=session)
 
     # Use the alpha channel from removed as the product mask
@@ -175,32 +175,40 @@ def color_swap(image, pantone_choice, hex_color, model_name):
 
     return recolored_with_bg, recolored_without_bg
 
-# Available rembg models
+# Available rembg models with descriptions
 MODELS = [
-    "u2net",
-    "u2netp",
-    "u2net_human_seg",
-    "u2net_cloth_seg",
-    "silueta",
-    "isnet-general-use",
-    "isnet-anime",
-    "birefnet-general",
-    "birefnet-general-lite",
-    "birefnet-portrait",
-    "birefnet-dis",
-    "birefnet-hrsod",
-    "birefnet-cod",
-    "birefnet-massive",
+    "isnet-general-use — Best all-around (recommended)",
+    "u2net — High accuracy, slower",
+    "u2netp — Lightweight & fast, lower accuracy",
+    "u2net_human_seg — Optimized for people",
+    "u2net_cloth_seg — Optimized for clothing",
+    "silueta — Fast, good for simple backgrounds",
+    "isnet-anime — Best for anime/illustrations",
+    "birefnet-general — High quality, large model",
+    "birefnet-general-lite — Balanced quality & speed",
+    "birefnet-portrait — Best for portraits/headshots",
+    "birefnet-dis — High detail, fine edges",
+    "birefnet-hrsod — High-res salient object detection",
+    "birefnet-cod — Camouflaged object detection",
+    "birefnet-massive — Highest quality, slowest",
 ]
 
-DEFAULT_MODEL = "isnet-general-use"
+# Map display names back to model IDs
+MODEL_ID_MAP = {m: m.split(" — ")[0] for m in MODELS}
+
+DEFAULT_MODEL = "isnet-general-use — Best all-around (recommended)"
+
+
+def resolve_model(display_name):
+    """Extract the model ID from the dropdown display name."""
+    return MODEL_ID_MAP.get(display_name, display_name.split(" — ")[0])
 
 
 def remove_background_batch(images, model_name):
     if not images:
         return [], None
 
-    session = get_session(model_name)
+    session = get_session(resolve_model(model_name))
     results = []
     temp_dir = tempfile.mkdtemp()
 
